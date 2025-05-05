@@ -28,4 +28,4 @@ class Options():
             help="List of path to student model testing results"
         )
         self.parser.add_argument('--num_data_points', type=str, default='10000', help="subset size of testing data")
-        self.parser.add_argument("--extra_step", type=str, default="none", help="extra post-distillation privacy distillation step. Choose from 'none', 'red_list', and 'temp'.")
+        self.parser.add_argument("--extra_step", type=str, default="", help="extra post-distillation privacy distillation step. Choose from '', 'red_list', and 'temp'.")

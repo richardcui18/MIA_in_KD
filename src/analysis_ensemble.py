@@ -100,16 +100,12 @@ def calculate_optimal_threshold(labels, scores, seed=42):
     class_proportions = np.bincount(y_pred, minlength=2) / len(y_pred)
     
     if np.all(class_proportions >= 0.2):
-        print("Optimal threshold satisfies the 20% class proportion requirement:", optimal_threshold)
         return optimal_threshold
     else:
-        print("Optimal threshold does not satisfy the 20% class proportion requirement. Falling back to random sampling.")
-        
-        # Fallback: Randomly sample thresholds until a valid one is found
+        # randomly sample thresholds until a valid one is found
         tries = 0
         while tries <= 30:
             random_idx = np.random.randint(0, len(thresholds))
-            print(random_idx)
             threshold = thresholds[random_idx]
             
             y_pred = (scores >= threshold).astype(int)
@@ -117,7 +113,6 @@ def calculate_optimal_threshold(labels, scores, seed=42):
             class_proportions = np.bincount(y_pred, minlength=2) / len(y_pred)
             
             if np.all(class_proportions >= 0.2):
-                print("Found valid threshold:", threshold)
                 return threshold
             
             tries += 1
@@ -184,15 +179,13 @@ def calculate_metrics(all_output):
 
     prediction_summary = [true_labels, original_recall_preds, original_ll_preds, original_zlib_preds, ensembled_recall_preds, ensembled_ll_preds, ensembled_zlib_preds]
 
-    return original_accuracy, ensembled_accuracy, original_mse, ensembled_mse, prediction_summary
+    return original_accuracy, ensembled_accuracy, prediction_summary
 
-def plot_metrics(original_accuracy, ensembled_accuracy, original_mse, ensembled_mse, model_name):
+def plot_metrics(original_accuracy, ensembled_accuracy, model_name):
     if 'BERT' in model_name:
         labels = ['Log Likelihood', 'Zlib']
         original_accuracy = original_accuracy[1:]
         ensembled_accuracy = ensembled_accuracy[1:]
-        original_mse = original_mse[1:]
-        ensembled_mse = ensembled_mse[1:]
         x = range(len(labels))
     else:
         labels = ['ReCall', 'Log Likelihood', 'Zlib']
@@ -404,35 +397,32 @@ def read_performance_proportions(model_name, metric):
         proportions = json.load(json_file)
     return proportions
 
-def do_ensemble(original_model_name, original_ensembled_model_map, input_path_dict):
-    # random number generator for draws among even number of ensembleds
+def do_ensemble(original_model_name, original_ensemble_model_map, input_path_dict):
+    # random number generator for draws among even number of ensembled models
     seed = int(hashlib.sha256(original_model_name.encode('utf-8')).hexdigest(), 16) % (2**32)
     rng = random.Random(seed)
 
     all_output_original, optimal_thresholds_original = read_tables_from_file_one_model(input_path_dict[original_model_name])
-    optimal_thresholds_ensembleds = {}
-    all_output_ensembleds = {}
+    optimal_thresholds_ensembles = {}
+    all_output_ensembles = {}
 
-    for ensembled_model_name in original_ensembled_model_map[original_model_name]:
-        all_output_ensembled, optimal_thresholds_ensembled = read_tables_from_file_one_model(input_path_dict[ensembled_model_name])
-        optimal_thresholds_ensembleds[ensembled_model_name] = optimal_thresholds_ensembled
-        all_output_ensembleds[ensembled_model_name] = all_output_ensembled
+    for ensemble_model_name in original_ensemble_model_map[original_model_name]:
+        all_output_ensemble, optimal_thresholds_ensemble = read_tables_from_file_one_model(input_path_dict[ensemble_model_name])
+        optimal_thresholds_ensembles[ensemble_model_name] = optimal_thresholds_ensemble
+        all_output_ensembles[ensemble_model_name] = all_output_ensemble
 
     pairwise_agreement_counts = {}
-    ensembled_models = list(original_ensembled_model_map[original_model_name])
-    num_ensembleds = len(ensembled_models)
+    ensemble_models = list(original_ensemble_model_map[original_model_name])
+    num_ensembles = len(ensemble_models)
 
     metrics = list(all_output_original[0]['pred'].keys())
 
-    print("length of ensembled", len(all_output_ensembled))
-    print("length of original", len(all_output_original))
-
     for metric in metrics:
         pairwise_agreement_counts[metric] = {}
-        for i in range(num_ensembleds):
+        for i in range(num_ensembles):
             pairwise_agreement_counts[metric][('original', i)] = 0
-        for i in range(num_ensembleds):
-            for j in range(i + 1, num_ensembleds):
+        for i in range(num_ensembles):
+            for j in range(i + 1, num_ensembles):
                 pairwise_agreement_counts[metric][(i, j)] = 0
 
     all_output_ensembled = []
@@ -440,66 +430,61 @@ def do_ensemble(original_model_name, original_ensembled_model_map, input_path_di
         pred_stud_label_ex = {}
         pred_stud_ex = {}
 
-        ensembled_predictions = {}
+        ensemble_predictions = {}
         for metric in metrics:
-            ensembled_predictions[metric] = []
-            for ensembled_model_name in ensembled_models:
-                all_output_ensembled = all_output_ensembleds[ensembled_model_name]
-                if all_output_ensembled[i]['input'] == ex['input']:
-                    ensembled_predictions[metric].append(all_output_ensembled[i]['predicted_label'][metric])
-                elif "Yes, a geometric explanation exists. One such explanation is related to the derivative" in ex['input']:
-                    ensembled_predictions[metric].append(all_output_ensembled[i]['predicted_label'][metric])
+            ensemble_predictions[metric] = []
+            for ensemble_model_name in ensemble_models:
+                all_output_ensemble = all_output_ensembles[ensemble_model_name]
+                if all_output_ensemble[i]['input'] == ex['input']:
+                    ensemble_predictions[metric].append(all_output_ensemble[i]['predicted_label'][metric])
                 else:
                     print("ERROR: Input text mismatch")
-                    print("ensembled text", all_output_ensembled[i]['input'])
-                    print("original text", ex['input'])
+                    
+        for metric in metrics:
+            # Count original-ensemble agreements
+            for ensemble_idx in range(num_ensembles):
+                if ex['predicted_label'][metric] == ensemble_predictions[metric][ensemble_idx]:
+                    pairwise_agreement_counts[metric][('original', ensemble_idx)] += 1
 
         for metric in metrics:
-            # Count original-ensembled agreements
-            for ensembled_idx in range(num_ensembleds):
-                if ex['predicted_label'][metric] == ensembled_predictions[metric][ensembled_idx]:
-                    pairwise_agreement_counts[metric][('original', ensembled_idx)] += 1
-
-        for metric in metrics:
-            for idx_i in range(num_ensembleds):
-                for idx_j in range(idx_i + 1, num_ensembleds):
-                    if ensembled_predictions[metric][idx_i] == ensembled_predictions[metric][idx_j]:
+            for idx_i in range(num_ensembles):
+                for idx_j in range(idx_i + 1, num_ensembles):
+                    if ensemble_predictions[metric][idx_i] == ensemble_predictions[metric][idx_j]:
                         pairwise_agreement_counts[metric][(idx_i, idx_j)] += 1
 
 
         # Loop through each metric
         for metric in ex['pred'].keys():
-            pos_vote_ensembleds = 0
-            neg_vote_ensembleds = 0
-            pred_score_ensembleds = 0
+            pos_vote_ensembles = 0
+            neg_vote_ensembles = 0
+            pred_score_ensembles = 0
 
-            # Loop through each ensembled model
-            for ensembled_model_name in original_ensembled_model_map[original_model_name]:
-                all_output_ensembled = all_output_ensembleds[ensembled_model_name]
+            for ensemble_model_name in original_ensemble_model_map[original_model_name]:
+                all_output_ensemble = all_output_ensembles[ensemble_model_name]
                 
-                if all_output_ensembled[i]['input'] == ex['input'] or "Yes, a geometric explanation exists. One such explanation is related to the derivative" in ex['input']:
-                    if all_output_ensembled[i]['predicted_label'][metric] == 0:
-                        neg_vote_ensembleds += 1
+                if all_output_ensemble[i]['input'] == ex['input'] or "Yes, a geometric explanation exists. One such explanation is related to the derivative" in ex['input']:
+                    if all_output_ensemble[i]['predicted_label'][metric] == 0:
+                        neg_vote_ensembles += 1
                     else:
-                        pos_vote_ensembleds += 1
-                    pred_score_ensembleds += all_output_ensembled[i]['pred'][metric]
+                        pos_vote_ensembles += 1
+                    pred_score_ensembles += all_output_ensemble[i]['pred'][metric]
                 
                 else:
                     print("ERROR: Input text mismatch")
             
-            if pos_vote_ensembleds > neg_vote_ensembleds:
+            if pos_vote_ensembles > neg_vote_ensembles:
                 pred_stud_label_ex[metric] = 1
-            elif neg_vote_ensembleds > pos_vote_ensembleds:
+            elif neg_vote_ensembles > pos_vote_ensembles:
                 pred_stud_label_ex[metric] = 0
             else:
-                # draw among even number of ensembleds -- random guessing
+                # draw among even number of ensembles -- random guessing
                 input_bytes = ex['input'].encode('utf-8')
                 combined = original_model_name.encode('utf-8') + input_bytes
                 tie_seed = int(hashlib.sha256(combined).hexdigest(), 16) % (2**32)
                 tie_rng = random.Random(tie_seed)
                 pred_stud_label_ex[metric] = tie_rng.choice([0, 1])
             
-            pred_stud_ex[metric] = pred_score_ensembleds / len(ex['pred'])
+            pred_stud_ex[metric] = pred_score_ensembles / len(ex['pred'])
         
         ex_ensemble = {}
         ex_ensemble['input'] = ex['input']
@@ -510,35 +495,6 @@ def do_ensemble(original_model_name, original_ensembled_model_map, input_path_di
         ex_ensemble['predicted_label_ensembled'] = pred_stud_label_ex
 
         all_output_ensembled.append(ex_ensemble)
-
-    num_examples = len(all_output_original)
-    pairwise_agreement_proportions = {}
-    for metric in metrics:
-        pairwise_agreement_proportions[metric] = {}
-        for pair, count in pairwise_agreement_counts[metric].items():
-            pairwise_agreement_proportions[metric][pair] = count / num_examples
-
-    os.makedirs(os.path.join('../fig/ensemble', original_model_name), exist_ok=True)
-    for metric in metrics:
-        output_txt_path = os.path.join('../fig/ensemble', original_model_name, f"{metric}_pairwise_agreement_prop.txt")
-        with open(output_txt_path, 'w') as f:
-            f.write(f"Pairwise Agreement Proportions for Metric: {metric}\n\n")
-            
-            # Write original-ensembled agreements first
-            f.write("original-ensembled Agreements:\n")
-            for i in range(num_ensembleds):
-                proportion = pairwise_agreement_proportions[metric][('original', i)]
-                ensembled_name = ensembled_models[i]
-                f.write(f"original with {ensembled_name}: {proportion:.4f}\n")
-            
-            # Write ensembled-ensembled agreements
-            f.write("\nensembled-ensembled Agreements:\n")
-            for i in range(num_ensembleds):
-                for j in range(i + 1, num_ensembleds):
-                    proportion = pairwise_agreement_proportions[metric][(i, j)]
-                    model_i = ensembled_models[i]
-                    model_j = ensembled_models[j]
-                    f.write(f"Pair ({model_i}, {model_j}): {proportion:.4f}\n")
 
     return all_output_ensembled
 
@@ -561,9 +517,9 @@ if __name__ == "__main__":
         input_path_dict[model] = ensembled_model_testing_results_paths[i]
     
     all_output = do_ensemble(original_model_name, original_ensemble_model_map, input_path_dict)
-    
-    original_accuracy, ensembled_accuracy, original_mse, ensembled_mse, prediction_summary = calculate_metrics(all_output)
-    plot_metrics(original_accuracy, ensembled_accuracy, original_mse, ensembled_mse, original_model_name)
+
+    original_accuracy, ensembled_accuracy, prediction_summary = calculate_metrics(all_output)
+    plot_metrics(original_accuracy, ensembled_accuracy, original_model_name)
 
     for metric in ['recall', 'll', 'zlib']:
         if metric == 'recall' and original_model_name == "BERT":

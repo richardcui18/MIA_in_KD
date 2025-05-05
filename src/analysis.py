@@ -81,13 +81,8 @@ def read_tables_from_multiple_files(input_path_teacher, input_path_student):
             if all_output_student[i]['input'] == ex['input']:
                 pred_stud_label_ex[metric] = int(all_output_student[i]['predicted_label'][metric])
                 pred_stud_ex[metric] = float(all_output_student[i]['pred'][metric])
-            elif "Yes, a geometric explanation exists. One such explanation is related to the derivative" in ex['input']:
-                pred_stud_label_ex[metric] = int(all_output_student[i]['predicted_label'][metric])
-                pred_stud_ex[metric] = float(all_output_student[i]['pred'][metric])
             else:
                 print("ERROR: Input text mismatch")
-                print("student text", all_output_student[i]['input'])
-                print("teacher text", ex['input'])
         
         ex_teacher_student = {}
         ex_teacher_student['input'] = ex['input']
@@ -174,15 +169,13 @@ def calculate_metrics(all_output):
     
     prediction_summary = [true_labels, teacher_recall_preds, teacher_ll_preds, teacher_zlib_preds, student_recall_preds, student_ll_preds, student_zlib_preds]
 
-    return teacher_accuracy, student_accuracy, teacher_mse, student_mse, prediction_summary
+    return teacher_accuracy, student_accuracy, prediction_summary
 
-def plot_metrics(teacher_accuracy, student_accuracy, teacher_mse, student_mse, teacher_model_name, student_model_name, extra_step):
+def plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student_model_name, extra_step):
     if teacher_model_name == 'BERT' or teacher_model_name == 'BERT_not_vulnerable':
         labels = ['Log Likelihood', 'Zlib']
         teacher_accuracy = teacher_accuracy[1:]
         student_accuracy = student_accuracy[1:]
-        teacher_mse = teacher_mse[1:]
-        student_mse = student_mse[1:]
         x = range(len(labels))
     else:
         labels = ['ReCall', 'Log Likelihood', 'Zlib']
@@ -451,8 +444,8 @@ if __name__ == "__main__":
         input_path_student = input_path_dict[student_model_name]
         all_output, optimal_thresholds_teacher, optimal_thresholds_student = read_tables_from_multiple_files(teacher_model_testing_results_path, input_path_student)
         
-        teacher_accuracy, student_accuracy, teacher_mse, student_mse, prediction_summary = calculate_metrics(all_output)
-        plot_metrics(teacher_accuracy, student_accuracy, teacher_mse, student_mse, teacher_model_name, student_model_name, extra_step)
+        teacher_accuracy, student_accuracy, prediction_summary = calculate_metrics(all_output)
+        plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student_model_name, extra_step)
         
         for metric in ['recall', 'll', 'zlib']:
             if metric == 'recall' and teacher_model_name == "BERT":
