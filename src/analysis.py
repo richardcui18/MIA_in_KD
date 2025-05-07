@@ -216,11 +216,7 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student
     rects2 = plt.bar([i + bar_width / 2 for i in x], student_accuracy, bar_width, label='Student', color='darkgrey')
     plt.xlabel('Metrics', labelpad=10, fontsize=14)
     plt.ylabel('Accuracy', labelpad=10, fontsize=14)
-    if extra_step != "none":
-        title_suffix = f" (with{extra_step.lower().replace('_', ' ')})"
-    else:
-        title_suffix = ""
-    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model\n{title_suffix}', pad=20, fontsize=18)
+    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model', pad=20, fontsize=18)
     plt.xticks(x, labels, fontsize=14)
     plt.yticks(fontsize=14)
     plt.legend(fontsize=14)
@@ -289,11 +285,7 @@ def plot_distribution_matrix(all_output, metric, teacher_model_name, student_mod
     
     plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
 
-    if extra_step != "none":
-        title_suffix = f" (with{extra_step.lower().replace('_', ' ')})"
-    else:
-        title_suffix = ""
-    plt.title(f"{teacher_model_name}/{student_model_name} Prediction Class Distribution Comparison using {metric.upper()}\n{title_suffix}", fontsize=16, y=0.92, x=0.35)
+    plt.title(f"{teacher_model_name}/{student_model_name} Prediction Class Distribution Comparison using {metric.upper()}", fontsize=16, y=0.92, x=0.35)
 
     os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
     plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_distribution_comparison_matrix{extra_step}.png'))
@@ -404,11 +396,7 @@ def plot_performance_matrix(all_output, metric, teacher_model_name, student_mode
     
     plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
 
-    if extra_step != "none":
-        title_suffix = f" (with{extra_step.lower().replace('_', ' ')})"
-    else:
-        title_suffix = ""
-    plt.title(f"{metric.upper()} Attack Performance Comparison on {teacher_model_name}/{student_model_name}\n{title_suffix}", fontsize=16, y=0.85, x=0.35)
+    plt.title(f"{metric.upper()} Attack Performance Comparison on {teacher_model_name}/{student_model_name}", fontsize=16, y=0.85, x=0.35)
 
     os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
     plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_attack_performance_comparison_matrix{extra_step}.png'))
