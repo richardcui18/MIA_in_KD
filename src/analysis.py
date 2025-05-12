@@ -155,23 +155,33 @@ def calculate_metrics(all_output):
         student_recall_preds.append(int(ex['predicted_label_student']['recall']))
         student_ll_preds.append(int(ex['predicted_label_student']['ll']))
         student_zlib_preds.append(int(ex['predicted_label_student']['zlib']))
+    
+    def get_accuracy_and_se(true, pred):
+        correct = np.array(true) == np.array(pred)
+        accuracy = np.mean(correct)
+        std = np.std(correct, ddof=1)
+        n = len(correct)
+        se = std / np.sqrt(n)
+        return accuracy, se
 
-    # Calculate accuracy
-    teacher_recall_acc = accuracy_score(true_labels, teacher_recall_preds)
-    teacher_ll_acc = accuracy_score(true_labels, teacher_ll_preds)
-    teacher_zlib_acc = accuracy_score(true_labels, teacher_zlib_preds)
-    student_recall_acc = accuracy_score(true_labels, student_recall_preds)
-    student_ll_acc = accuracy_score(true_labels, student_ll_preds)
-    student_zlib_acc = accuracy_score(true_labels, student_zlib_preds)
+    # Calculate accuracy and SE
+    teacher_recall_acc, teacher_recall_se = get_accuracy_and_se(true_labels, teacher_recall_preds)
+    teacher_ll_acc, teacher_ll_se = get_accuracy_and_se(true_labels, teacher_ll_preds)
+    teacher_zlib_acc, teacher_zlib_se = get_accuracy_and_se(true_labels, teacher_zlib_preds)
+    student_recall_acc, student_recall_se = get_accuracy_and_se(true_labels, student_recall_preds)
+    student_ll_acc, student_ll_se = get_accuracy_and_se(true_labels, student_ll_preds)
+    student_zlib_acc, student_zlib_se = get_accuracy_and_se(true_labels, student_zlib_preds)
 
     teacher_accuracy = [teacher_recall_acc, teacher_ll_acc, teacher_zlib_acc]
     student_accuracy = [student_recall_acc, student_ll_acc, student_zlib_acc]
+    teacher_se = [teacher_recall_se, teacher_ll_se, teacher_zlib_se]
+    student_se = [student_recall_se, student_ll_se, student_zlib_se]
     
     prediction_summary = [true_labels, teacher_recall_preds, teacher_ll_preds, teacher_zlib_preds, student_recall_preds, student_ll_preds, student_zlib_preds]
 
-    return teacher_accuracy, student_accuracy, prediction_summary
+    return teacher_accuracy, student_accuracy, teacher_se, student_se, prediction_summary
 
-def plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student_model_name, extra_step):
+def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, teacher_model_name, student_model_name, extra_step):
     if teacher_model_name == 'BERT' or teacher_model_name == 'BERT_not_vulnerable':
         labels = ['Log Likelihood', 'Zlib']
         teacher_accuracy = teacher_accuracy[1:]
@@ -196,9 +206,16 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student
     for i, label in enumerate(labels):
         accuracy_data["metrics"].append({
             "metric": label,
-            "teacher_accuracy": float(teacher_accuracy[i]),
-            "student_accuracy": float(student_accuracy[i]),
-            "difference": float(teacher_accuracy[i] - student_accuracy[i])
+            "teacher_accuracy": {
+                "mean": float(teacher_accuracy[i]),
+                "se": float(teacher_se[i]),
+                "ci_95": f"({teacher_accuracy[i]-1.96*teacher_se[i]:.4f}, {teacher_accuracy[i]+1.96*teacher_se[i]:.4f})"
+            },
+            "student_accuracy": {
+                "mean": float(student_accuracy[i]),
+                "se": float(student_se[i]),
+                "ci_95": f"({student_accuracy[i]-1.96*student_se[i]:.4f}, {student_accuracy[i]+1.96*student_se[i]:.4f})"
+            }
         })
     
     # Write to JSON file
@@ -212,16 +229,24 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student
 
     # Plot for Accuracy
     plt.figure(figsize=(10,7))
-    rects1 = plt.bar([i - bar_width / 2 for i in x], teacher_accuracy, bar_width, label='Teacher', color='lightblue')
-    rects2 = plt.bar([i + bar_width / 2 for i in x], student_accuracy, bar_width, label='Student', color='darkgrey')
+    rects1 = plt.bar([i - bar_width / 2 for i in x], teacher_accuracy, bar_width, 
+                     yerr=teacher_se, capsize=5, label='Teacher', color='lightblue')
+    rects2 = plt.bar([i + bar_width / 2 for i in x], student_accuracy, bar_width, 
+                     yerr=student_se, capsize=5, label='Student', color='darkgrey')
     plt.xlabel('Metrics', labelpad=10, fontsize=14)
     plt.ylabel('Accuracy', labelpad=10, fontsize=14)
-    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model', pad=20, fontsize=18)
+    if extra_step != "none":
+        title_suffix = f" (with{extra_step.lower().replace('_', ' ')})"
+    else:
+        title_suffix = ""
+    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model\n{title_suffix}', 
+              pad=20, fontsize=18)
     plt.xticks(x, labels, fontsize=14)
     plt.yticks(fontsize=14)
     plt.legend(fontsize=14)
     plt.grid(True, linestyle='--', alpha=0.6)
-    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'accuracy_comparison{extra_step}.png'))
+    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, 
+                            f'accuracy_comparison{extra_step}.png'))
     print(f"Accuracy plot to {os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'accuracy_comparison{extra_step}.png')}")
     plt.close()
 
@@ -420,7 +445,7 @@ if __name__ == "__main__":
     student_model_names = args.student_model_names
     student_model_testing_results_paths = args.student_model_testing_results_paths
     num_data_points = args.num_data_points
-    extra_step = args.extra_step
+    extra_step = args.post_distillation_step
 
     input_path_dict = {
         teacher_model_name: teacher_model_testing_results_path
@@ -432,8 +457,8 @@ if __name__ == "__main__":
         input_path_student = input_path_dict[student_model_name]
         all_output, optimal_thresholds_teacher, optimal_thresholds_student = read_tables_from_multiple_files(teacher_model_testing_results_path, input_path_student)
         
-        teacher_accuracy, student_accuracy, prediction_summary = calculate_metrics(all_output)
-        plot_metrics(teacher_accuracy, student_accuracy, teacher_model_name, student_model_name, extra_step)
+        teacher_accuracy, student_accuracy, teacher_se, student_se, prediction_summary = calculate_metrics(all_output)
+        plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, teacher_model_name, student_model_name, extra_step)
         
         for metric in ['recall', 'll', 'zlib']:
             if metric == 'recall' and teacher_model_name == "BERT":

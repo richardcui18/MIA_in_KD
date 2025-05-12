@@ -389,7 +389,7 @@ if __name__ == "__main__":
     synehtic_prefix = args.synehtic_prefix
     api_key_path = args.api_key_path
     vulnerable_file_path = args.vulnerable_file_path
-    extra_step = args.extra_step
+    extra_step = args.post_distillation_step
     bert_percent_masked = 0.15
 
     if synehtic_prefix and api_key_path is not None:

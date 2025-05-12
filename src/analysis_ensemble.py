@@ -74,7 +74,7 @@ def read_tables_from_file_one_model(input_path):
 def calculate_optimal_threshold(labels, scores, seed=42):
     """
     Calculate the optimal threshold by first selecting the best threshold based on a metric,
-    and if it doesn't satisfy the 20% class proportion requirement, randomly sample thresholds
+    and if it doesn't satisfy the 10% class proportion requirement, randomly sample thresholds
     until a valid one is found.
     """
     np.random.seed(seed)
@@ -95,11 +95,11 @@ def calculate_optimal_threshold(labels, scores, seed=42):
     optimal_idx = np.argmax(metric)
     optimal_threshold = thresholds[optimal_idx]
     
-    # Check if the optimal threshold satisfies the 20% class proportion requirement
+    # Check if the optimal threshold satisfies the 10% class proportion requirement
     y_pred = (scores >= optimal_threshold).astype(int)
     class_proportions = np.bincount(y_pred, minlength=2) / len(y_pred)
     
-    if np.all(class_proportions >= 0.2):
+    if np.all(class_proportions >= 0.1):
         return optimal_threshold
     else:
         # randomly sample thresholds until a valid one is found
@@ -112,7 +112,7 @@ def calculate_optimal_threshold(labels, scores, seed=42):
             
             class_proportions = np.bincount(y_pred, minlength=2) / len(y_pred)
             
-            if np.all(class_proportions >= 0.2):
+            if np.all(class_proportions >= 0.1):
                 return threshold
             
             tries += 1

@@ -21,4 +21,4 @@ class Options():
         self.parser.add_argument("--synehtic_prefix", type=bool, default=False, help="whether to use synehtic prefix.")
         self.parser.add_argument("--api_key_path", type=str, default=None, help="path to the api key file for OpenAI API if using synehtic prefix.")
         self.parser.add_argument("--vulnerable_file_path", type=str, default=None, help="path to file with vulnerable data.")
-        self.parser.add_argument("--extra_step", type=str, default="none", help="extra post-distillation privacy distillation step. Choose from 'none', 'red_list', and 'temp'.")
+        self.parser.add_argument("--post_distillation_step", type=str, default="none", help="extra post-distillation privacy-preserving distillation step. Choose from 'none', 'red_list', and 'temp'.")
