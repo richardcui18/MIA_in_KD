@@ -191,12 +191,12 @@ def calculate_metrics(all_output):
 
 def plot_metrics(original_accuracy, ensembled_accuracy, model_name):
     if 'BERT' in model_name:
-        labels = ['Log Likelihood', 'Zlib']
+        labels = ['Loss', 'Zlib']
         original_accuracy = original_accuracy[1:]
         ensembled_accuracy = ensembled_accuracy[1:]
         x = range(len(labels))
     else:
-        labels = ['ReCall', 'Log Likelihood', 'Zlib']
+        labels = ['ReCall', 'Loss', 'Zlib']
         x = range(len(labels))
     bar_width = 0.35
 

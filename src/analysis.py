@@ -186,14 +186,14 @@ def calculate_metrics(all_output):
 
 def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, teacher_model_name, student_model_name, extra_step):
     if teacher_model_name == 'BERT' or teacher_model_name == 'BERT_not_vulnerable':
-        labels = ['Log Likelihood', 'Zlib']
+        labels = ['Loss', 'Zlib']
         teacher_accuracy = teacher_accuracy[1:]
         student_accuracy = student_accuracy[1:]
         teacher_se = teacher_se[1:]
         student_se = student_se[1:]
         x = range(len(labels))
     else:
-        labels = ['ReCall', 'Log Likelihood', 'Zlib']
+        labels = ['ReCall', 'Loss', 'Zlib']
         x = range(len(labels))
     bar_width = 0.35
 
@@ -240,11 +240,7 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, tea
                      yerr=student_se, capsize=5, label='Student', color='darkgrey')
     plt.xlabel('Metrics', labelpad=10, fontsize=14)
     plt.ylabel('Accuracy', labelpad=10, fontsize=14)
-    if extra_step != "":
-        title_suffix = f" ({extra_step.lower().replace('_', ' ')})"
-    else:
-        title_suffix = ""
-    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model with SE\n{title_suffix}', 
+    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model with SE', 
               pad=20, fontsize=18)
     plt.xticks(x, labels, fontsize=14)
     plt.yticks(fontsize=14)
@@ -449,7 +445,9 @@ if __name__ == "__main__":
     teacher_model_testing_results_path = args.teacher_model_testing_results_path
     student_model_names = args.student_model_names
     student_model_testing_results_paths = args.student_model_testing_results_paths
-    extra_step = '_' + args.post_distillation_step
+    extra_step = args.post_distillation_step
+    if extra_step == "red_list" or extra_step == "temp":
+        extra_step = "_" + extra_step
 
     input_path_dict = {
         teacher_model_name: teacher_model_testing_results_path

@@ -39,8 +39,7 @@ python analysis.py \
     --teacher_model_name <TEACHER_MODEL> \
     --teacher_model_testing_results_path <TEACHER_MODEL_TESTING_PATH> \
     --student_model_names <STUDENT_MODELS> \
-    --student_model_testing_results_paths <STUDENT_MODEL_TESTING_PATHS> \
-    --post_distillation_step <POST_DISTILLATION_STEP>
+    --student_model_testing_results_paths <STUDENT_MODEL_TESTING_PATHS>
 ```
 
 Example:
@@ -49,6 +48,5 @@ python analysis.py \
     --teacher_model_name "BERT" \
     --teacher_model_testing_results_path "out/bookcorpus/bert-base-uncased/128/2_shot_128.csv" \
     --student_model_names "DistilBERT" \
-    --student_model_testing_results_paths "out/bookcorpus/distilbert-base-uncased/128/2_shot_128.csv" \
-    --post_distillation_step ""
+    --student_model_testing_results_paths "out/bookcorpus/distilbert-base-uncased/128/2_shot_128.csv"
 ```
