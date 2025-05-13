@@ -7,6 +7,7 @@ import sys
 import json
 from analysis_options import Options
 import analysis_ensemble
+from sklearn.metrics import confusion_matrix
 
 def read_tables_from_file(input_path):
     """
@@ -157,12 +158,14 @@ def calculate_metrics(all_output):
         student_zlib_preds.append(int(ex['predicted_label_student']['zlib']))
     
     def get_accuracy_and_se(true, pred):
-        correct = np.array(true) == np.array(pred)
-        accuracy = np.mean(correct)
-        std = np.std(correct, ddof=1)
-        n = len(correct)
-        se = std / np.sqrt(n)
-        return accuracy, se
+        tn, fp, fn, tp = confusion_matrix(true, pred).ravel()
+        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
+        tnr = tn / (tn + fp) if (tn + fp) > 0 else 0
+        acc = (tpr + tnr) / 2
+        se_tpr = np.sqrt(tpr * (1 - tpr) / (tp + fn)) if (tp + fn) > 0 else 0
+        se_tnr = np.sqrt(tnr * (1 - tnr) / (tn + fp)) if (tn + fp) > 0 else 0
+        se = 0.5 * np.sqrt(se_tpr**2 + se_tnr**2)
+        return acc, se
 
     # Calculate accuracy and SE
     teacher_recall_acc, teacher_recall_se = get_accuracy_and_se(true_labels, teacher_recall_preds)
@@ -186,6 +189,8 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, tea
         labels = ['Log Likelihood', 'Zlib']
         teacher_accuracy = teacher_accuracy[1:]
         student_accuracy = student_accuracy[1:]
+        teacher_se = teacher_se[1:]
+        student_se = student_se[1:]
         x = range(len(labels))
     else:
         labels = ['ReCall', 'Log Likelihood', 'Zlib']
@@ -207,14 +212,14 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, tea
         accuracy_data["metrics"].append({
             "metric": label,
             "teacher_accuracy": {
-                "mean": float(teacher_accuracy[i]),
-                "se": float(teacher_se[i]),
-                "ci_95": f"({teacher_accuracy[i]-1.96*teacher_se[i]:.4f}, {teacher_accuracy[i]+1.96*teacher_se[i]:.4f})"
+                "mean": round(float(teacher_accuracy[i]),3),
+                "se": round(float(teacher_se[i]),3),
+                "ci_95": f"({teacher_accuracy[i]-1.96*teacher_se[i]:.3f}, {teacher_accuracy[i]+1.96*teacher_se[i]:.3f})"
             },
             "student_accuracy": {
-                "mean": float(student_accuracy[i]),
-                "se": float(student_se[i]),
-                "ci_95": f"({student_accuracy[i]-1.96*student_se[i]:.4f}, {student_accuracy[i]+1.96*student_se[i]:.4f})"
+                "mean": round(float(student_accuracy[i]),3),
+                "se": round(float(student_se[i]),3),
+                "ci_95": f"({student_accuracy[i]-1.96*student_se[i]:.3f}, {student_accuracy[i]+1.96*student_se[i]:.3f})"
             }
         })
     
@@ -235,11 +240,11 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, tea
                      yerr=student_se, capsize=5, label='Student', color='darkgrey')
     plt.xlabel('Metrics', labelpad=10, fontsize=14)
     plt.ylabel('Accuracy', labelpad=10, fontsize=14)
-    if extra_step != "none":
-        title_suffix = f" (with{extra_step.lower().replace('_', ' ')})"
+    if extra_step != "":
+        title_suffix = f" ({extra_step.lower().replace('_', ' ')})"
     else:
         title_suffix = ""
-    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model\n{title_suffix}', 
+    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model with SE\n{title_suffix}', 
               pad=20, fontsize=18)
     plt.xticks(x, labels, fontsize=14)
     plt.yticks(fontsize=14)
@@ -444,8 +449,7 @@ if __name__ == "__main__":
     teacher_model_testing_results_path = args.teacher_model_testing_results_path
     student_model_names = args.student_model_names
     student_model_testing_results_paths = args.student_model_testing_results_paths
-    num_data_points = args.num_data_points
-    extra_step = args.post_distillation_step
+    extra_step = '_' + args.post_distillation_step
 
     input_path_dict = {
         teacher_model_name: teacher_model_testing_results_path

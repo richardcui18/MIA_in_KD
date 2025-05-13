@@ -2,7 +2,7 @@ import csv
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import accuracy_score, roc_curve
+from sklearn.metrics import accuracy_score, roc_curve, confusion_matrix
 import sys
 import json
 from analysis_options import Options
@@ -74,7 +74,7 @@ def read_tables_from_file_one_model(input_path):
 def calculate_optimal_threshold(labels, scores, seed=42):
     """
     Calculate the optimal threshold by first selecting the best threshold based on a metric,
-    and if it doesn't satisfy the 10% class proportion requirement, randomly sample thresholds
+    and if it doesn't satisfy the 20% class proportion requirement, randomly sample thresholds
     until a valid one is found.
     """
     np.random.seed(seed)
@@ -95,11 +95,11 @@ def calculate_optimal_threshold(labels, scores, seed=42):
     optimal_idx = np.argmax(metric)
     optimal_threshold = thresholds[optimal_idx]
     
-    # Check if the optimal threshold satisfies the 10% class proportion requirement
+    # Check if the optimal threshold satisfies the 20% class proportion requirement
     y_pred = (scores >= optimal_threshold).astype(int)
     class_proportions = np.bincount(y_pred, minlength=2) / len(y_pred)
     
-    if np.all(class_proportions >= 0.1):
+    if np.all(class_proportions >= 0.2):
         return optimal_threshold
     else:
         # randomly sample thresholds until a valid one is found
@@ -112,7 +112,7 @@ def calculate_optimal_threshold(labels, scores, seed=42):
             
             class_proportions = np.bincount(y_pred, minlength=2) / len(y_pred)
             
-            if np.all(class_proportions >= 0.1):
+            if np.all(class_proportions >= 0.2):
                 return threshold
             
             tries += 1
@@ -166,13 +166,21 @@ def calculate_metrics(all_output):
         ensembled_ll_preds.append(int(ex['predicted_label_ensembled']['ll']))
         ensembled_zlib_preds.append(int(ex['predicted_label_ensembled']['zlib']))
 
+    def get_accuracy(true, pred):
+        tn, fp, fn, tp = confusion_matrix(true, pred).ravel()
+        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
+        tnr = tn / (tn + fp) if (tn + fp) > 0 else 0
+        acc = (tpr + tnr) / 2
+        
+        return acc
+
     # Calculate accuracy
-    original_recall_acc = accuracy_score(true_labels, original_recall_preds)
-    original_ll_acc = accuracy_score(true_labels, original_ll_preds)
-    original_zlib_acc = accuracy_score(true_labels, original_zlib_preds)
-    ensembled_recall_acc = accuracy_score(true_labels, ensembled_recall_preds)
-    ensembled_ll_acc = accuracy_score(true_labels, ensembled_ll_preds)
-    ensembled_zlib_acc = accuracy_score(true_labels, ensembled_zlib_preds)
+    original_recall_acc = get_accuracy(true_labels, original_recall_preds)
+    original_ll_acc = get_accuracy(true_labels, original_ll_preds)
+    original_zlib_acc = get_accuracy(true_labels, original_zlib_preds)
+    ensembled_recall_acc = get_accuracy(true_labels, ensembled_recall_preds)
+    ensembled_ll_acc = get_accuracy(true_labels, ensembled_ll_preds)
+    ensembled_zlib_acc = get_accuracy(true_labels, ensembled_zlib_preds)
 
     original_accuracy = [original_recall_acc, original_ll_acc, original_zlib_acc]
     ensembled_accuracy = [ensembled_recall_acc, ensembled_ll_acc, ensembled_zlib_acc]
@@ -203,9 +211,8 @@ def plot_metrics(original_accuracy, ensembled_accuracy, model_name):
     for i, label in enumerate(labels):
         accuracy_data["metrics"].append({
             "metric": label,
-            "original_accuracy": float(original_accuracy[i]),
-            "ensembled_accuracy": float(ensembled_accuracy[i]),
-            "difference": float(original_accuracy[i] - ensembled_accuracy[i])
+            "original_accuracy": round(float(original_accuracy[i]),3),
+            "ensembled_accuracy": round(float(ensembled_accuracy[i]),3)
         })
 
     json_output_path = os.path.join('../fig/ensemble', model_name, 'accuracy_values.json')
@@ -507,7 +514,6 @@ if __name__ == "__main__":
     original_model_testing_results_path = args.teacher_model_testing_results_path
     ensembled_model_names = args.student_model_names
     ensembled_model_testing_results_paths = args.student_model_testing_results_paths
-    num_data_points = args.num_data_points
 
     original_ensemble_model_map = {original_model_name: ensembled_model_names}
     input_path_dict = {
