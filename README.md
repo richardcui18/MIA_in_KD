@@ -1,7 +1,7 @@
-# Membership Inference Attacks in Knowledge Distillation
+# On Membership Inference Attacks in Knowledge Distillation
 
 ## Overview
-This is the official repository for Membership Inference Attacks in Knowledge Distillation.
+This is the official repository for On Membership Inference Attacks in Knowledge Distillation.
 
 ## Installation
    ```bash
@@ -40,7 +40,6 @@ python analysis.py \
     --teacher_model_testing_results_path <TEACHER_MODEL_TESTING_PATH> \
     --student_model_names <STUDENT_MODELS> \
     --student_model_testing_results_paths <STUDENT_MODEL_TESTING_PATHS> \
-    --num_data_points <NUM_DATA_POINTS> \
     --post_distillation_step <POST_DISTILLATION_STEP>
 ```
 
@@ -51,6 +50,5 @@ python analysis.py \
     --teacher_model_testing_results_path "out/bookcorpus/bert-base-uncased/128/2_shot_128.csv" \
     --student_model_names "DistilBERT" \
     --student_model_testing_results_paths "out/bookcorpus/distilbert-base-uncased/128/2_shot_128.csv" \
-    --num_data_points "100000" \
     --post_distillation_step ""
 ```
