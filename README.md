@@ -34,7 +34,7 @@ python run.py \
 ```
 
 ## Generating Vulnerable and Non-vulnerable Subsets
-Given MIA result for a teacher model, you can obtain vulnerable and non-vulnerable subsets of the training dataset, as described in the paper. The following will generate the vulnerable subset, non-vulnerable subset, vulnerable subset plus 5% of non-vulnerable subset, and vulnerable subset plus 10% of non-vulnerable subset:
+Given MIA result for a teacher model, you can obtain vulnerable and non-vulnerable subsets of the training dataset, as described in the paper. The following command will generate the vulnerable subset, non-vulnerable subset, vulnerable subset plus 5% of non-vulnerable subset, and vulnerable subset plus 10% of non-vulnerable subset:
 ```bash
 python get_vulnerable_data.py \
     --target_model <TARGET_MODEL_NAME> \
@@ -86,7 +86,7 @@ python analysis.py \
 ```
 
 ## Analysis with Ensemble
-To ensemble multiple student models or ensemble multiple privacy-preserving distillation methods (in which case the original student model should be passed in the "teacher" fields and the student models distilled from privacy-preserving distillation methods should be passed in the "student" fields), you can use the following for ensemble analysis:
+To ensemble multiple student models or ensemble multiple privacy-preserving distillation methods (in which case the original student model should be passed in the "teacher" fields and the student models distilled from privacy-preserving distillation methods should be passed in the "student" fields), you can use the following command for ensemble analysis:
 
 ```bash
 python analysis_ensemble.py \
