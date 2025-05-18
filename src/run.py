@@ -1,4 +1,3 @@
-# This implementation is adapted from https://github.com/ruoyuxie/recall/tree/main
 import os
 from tqdm import tqdm
 from process_data import create_dataset
@@ -7,7 +6,6 @@ from options import Options
 import numpy as np
 import torch
 import zlib
-import os
 import torch.nn.functional as F
 from transformers import set_seed
 import transformers
@@ -65,7 +63,7 @@ def load_model(model_name, use_float16=True):
         else:
             model = AutoModelForCausalLM.from_pretrained(
                 name, return_dict=True, trust_remote_code=True,
-                torch_dtype = torch.float16 if use_float16 or name == "google/gemma-2-27b-it" else torch.float32,
+                torch_dtype = torch.float16 if use_float16 and name != "google/gemma-2-27b-it" else torch.bfloat16,
                 device_map="auto",
                 attn_implementation="eager"
             )
@@ -194,7 +192,7 @@ def get_ll_bert(sentence, model, tokenizer, device, bert_percent_masked, vulnera
         return None
 
     if extra_step == "red_list":
-        adjusted_logits = apply_red_list(logits, input_ids, tokenizer, device, vulnerable_file_path)
+        adjusted_logits = apply_red_list(logits, tokenizer, device, vulnerable_file_path)
         
         # Recompute loss with adjusted logits
         loss = F.cross_entropy(
@@ -206,7 +204,7 @@ def get_ll_bert(sentence, model, tokenizer, device, bert_percent_masked, vulnera
         logits = adjusted_logits
     
     if extra_step == "temp":
-        scaled_logits = apply_temp(logits, input_ids, tokenizer, device, vulnerable_file_path)
+        scaled_logits = apply_temp(logits, tokenizer, device, vulnerable_file_path)
         
         # Recompute loss with adjusted logits
         loss = F.cross_entropy(
@@ -285,7 +283,7 @@ def inference(model, tokenizer, target_data, prefix, accelerator, num_shots, ex,
             pred["recall"] = ll_nonmember / ll
 
     # baselines 
-    pred["ll"] = ll
+    pred["loss"] = ll
     pred["zlib"] = ll / len(zlib.compress(bytes(target_data, "utf-8")))
     
     ex["pred"] = pred

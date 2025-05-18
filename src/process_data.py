@@ -1,5 +1,3 @@
-# This implementation is adapted from https://github.com/ruoyuxie/recall/tree/main
-
 from datasets import load_dataset
 import os
 import random

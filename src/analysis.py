@@ -8,6 +8,8 @@ import json
 from analysis_options import Options
 import analysis_ensemble
 from sklearn.metrics import confusion_matrix
+import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
 
 def read_tables_from_file(input_path):
     """
@@ -65,7 +67,6 @@ def read_tables_from_file(input_path):
 
     bert_in_model = 'bert' in input_path.lower()
     
-    print("Done importing, start calculating threshold...")
     return classify_data_points(all_output_list, bert_in_model)
 
 def read_tables_from_multiple_files(input_path_teacher, input_path_student):
@@ -139,7 +140,7 @@ def classify_data_points(all_output, bert_in_model):
 
     return all_output, optimal_thresholds_teacher, optimal_thresholds_student
 
-def calculate_metrics(all_output):
+def calculate_metrics(all_output, teacher_model_name, student_model_name, extra_step):
     true_labels = []
     teacher_recall_preds = []
     teacher_ll_preds = []
@@ -151,46 +152,44 @@ def calculate_metrics(all_output):
     for ex in all_output:
         true_labels.append(int(ex['label']))
         teacher_recall_preds.append(int(ex['predicted_label_teacher']['recall']))
-        teacher_ll_preds.append(int(ex['predicted_label_teacher']['ll']))
+        teacher_ll_preds.append(int(ex['predicted_label_teacher']['loss']))
         teacher_zlib_preds.append(int(ex['predicted_label_teacher']['zlib']))
         student_recall_preds.append(int(ex['predicted_label_student']['recall']))
-        student_ll_preds.append(int(ex['predicted_label_student']['ll']))
+        student_ll_preds.append(int(ex['predicted_label_student']['loss']))
         student_zlib_preds.append(int(ex['predicted_label_student']['zlib']))
     
-    def get_accuracy_and_se(true, pred):
+    def get_accuracy_and_sd(true, pred):
         tn, fp, fn, tp = confusion_matrix(true, pred).ravel()
         tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
         tnr = tn / (tn + fp) if (tn + fp) > 0 else 0
         acc = (tpr + tnr) / 2
-        se_tpr = np.sqrt(tpr * (1 - tpr) / (tp + fn)) if (tp + fn) > 0 else 0
-        se_tnr = np.sqrt(tnr * (1 - tnr) / (tn + fp)) if (tn + fp) > 0 else 0
-        se = 0.5 * np.sqrt(se_tpr**2 + se_tnr**2)
-        return acc, se
+        sd_tpr = np.sqrt(tpr * (1 - tpr) / (tp + fn)) if (tp + fn) > 0 else 0
+        sd_tnr = np.sqrt(tnr * (1 - tnr) / (tn + fp)) if (tn + fp) > 0 else 0
+        sd = 0.5 * np.sqrt(sd_tpr**2 + sd_tnr**2)
+        return acc, sd
 
-    # Calculate accuracy and SE
-    teacher_recall_acc, teacher_recall_se = get_accuracy_and_se(true_labels, teacher_recall_preds)
-    teacher_ll_acc, teacher_ll_se = get_accuracy_and_se(true_labels, teacher_ll_preds)
-    teacher_zlib_acc, teacher_zlib_se = get_accuracy_and_se(true_labels, teacher_zlib_preds)
-    student_recall_acc, student_recall_se = get_accuracy_and_se(true_labels, student_recall_preds)
-    student_ll_acc, student_ll_se = get_accuracy_and_se(true_labels, student_ll_preds)
-    student_zlib_acc, student_zlib_se = get_accuracy_and_se(true_labels, student_zlib_preds)
+    # Calculate accuracy and SD
+    teacher_recall_acc, teacher_recall_sd = get_accuracy_and_sd(true_labels, teacher_recall_preds)
+    teacher_ll_acc, teacher_ll_sd = get_accuracy_and_sd(true_labels, teacher_ll_preds)
+    teacher_zlib_acc, teacher_zlib_sd = get_accuracy_and_sd(true_labels, teacher_zlib_preds)
+    student_recall_acc, student_recall_sd = get_accuracy_and_sd(true_labels, student_recall_preds)
+    student_ll_acc, student_ll_sd = get_accuracy_and_sd(true_labels, student_ll_preds)
+    student_zlib_acc, student_zlib_sd = get_accuracy_and_sd(true_labels, student_zlib_preds)
 
     teacher_accuracy = [teacher_recall_acc, teacher_ll_acc, teacher_zlib_acc]
     student_accuracy = [student_recall_acc, student_ll_acc, student_zlib_acc]
-    teacher_se = [teacher_recall_se, teacher_ll_se, teacher_zlib_se]
-    student_se = [student_recall_se, student_ll_se, student_zlib_se]
+    teacher_sd = [teacher_recall_sd, teacher_ll_sd, teacher_zlib_sd]
+    student_sd = [student_recall_sd, student_ll_sd, student_zlib_sd]
     
     prediction_summary = [true_labels, teacher_recall_preds, teacher_ll_preds, teacher_zlib_preds, student_recall_preds, student_ll_preds, student_zlib_preds]
 
-    return teacher_accuracy, student_accuracy, teacher_se, student_se, prediction_summary
-
-def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, teacher_model_name, student_model_name, extra_step):
+    # Export accuracy and SD
     if teacher_model_name == 'BERT' or teacher_model_name == 'BERT_not_vulnerable':
         labels = ['Loss', 'Zlib']
         teacher_accuracy = teacher_accuracy[1:]
         student_accuracy = student_accuracy[1:]
-        teacher_se = teacher_se[1:]
-        student_se = student_se[1:]
+        teacher_sd = teacher_sd[1:]
+        student_sd = student_sd[1:]
         x = range(len(labels))
     else:
         labels = ['ReCall', 'Loss', 'Zlib']
@@ -210,16 +209,16 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, tea
     
     for i, label in enumerate(labels):
         accuracy_data["metrics"].append({
-            "metric": label,
+            "MIA Method": label,
             "teacher_accuracy": {
                 "mean": round(float(teacher_accuracy[i]),3),
-                "se": round(float(teacher_se[i]),3),
-                "ci_95": f"({teacher_accuracy[i]-1.96*teacher_se[i]:.3f}, {teacher_accuracy[i]+1.96*teacher_se[i]:.3f})"
+                "sd": round(float(teacher_sd[i]),3),
+                "ci_95": f"({teacher_accuracy[i]-1.96*teacher_sd[i]:.3f}, {teacher_accuracy[i]+1.96*teacher_sd[i]:.3f})"
             },
             "student_accuracy": {
                 "mean": round(float(student_accuracy[i]),3),
-                "se": round(float(student_se[i]),3),
-                "ci_95": f"({student_accuracy[i]-1.96*student_se[i]:.3f}, {student_accuracy[i]+1.96*student_se[i]:.3f})"
+                "sd": round(float(student_sd[i]),3),
+                "ci_95": f"({student_accuracy[i]-1.96*student_sd[i]:.3f}, {student_accuracy[i]+1.96*student_sd[i]:.3f})"
             }
         })
     
@@ -231,25 +230,7 @@ def plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, tea
             accuracy_data['student_model'] = accuracy_data['student_model']+extra_step
         json.dump(accuracy_data, f, indent=4)
 
-
-    # Plot for Accuracy
-    plt.figure(figsize=(10,7))
-    rects1 = plt.bar([i - bar_width / 2 for i in x], teacher_accuracy, bar_width, 
-                     yerr=teacher_se, capsize=5, label='Teacher', color='lightblue')
-    rects2 = plt.bar([i + bar_width / 2 for i in x], student_accuracy, bar_width, 
-                     yerr=student_se, capsize=5, label='Student', color='darkgrey')
-    plt.xlabel('Metrics', labelpad=10, fontsize=14)
-    plt.ylabel('Accuracy', labelpad=10, fontsize=14)
-    plt.title(f'{teacher_model_name}/{student_model_name} Accuracy by Metric and Model with SE', 
-              pad=20, fontsize=18)
-    plt.xticks(x, labels, fontsize=14)
-    plt.yticks(fontsize=14)
-    plt.legend(fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, 
-                            f'accuracy_comparison{extra_step}.png'))
-    print(f"Accuracy plot to {os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'accuracy_comparison{extra_step}.png')}")
-    plt.close()
+    return teacher_accuracy, student_accuracy, teacher_sd, student_sd, prediction_summary
 
 def plot_distribution_matrix(all_output, metric, teacher_model_name, student_model_name, extra_step):
     matrix_distribution = {
@@ -273,48 +254,62 @@ def plot_distribution_matrix(all_output, metric, teacher_model_name, student_mod
 
     total = len(all_output)
 
-    data = [
-        [f"Proportion: {(matrix_distribution['teacher_1']['student_1']/total):.3f}",
-         f"Proportion: {(matrix_distribution['teacher_1']['student_0']/total):.3f}"],
-        [f"Proportion: {(matrix_distribution['teacher_0']['student_1']/total):.3f}",
-         f"Proportion: {(matrix_distribution['teacher_0']['student_0']/total):.3f}"]
-    ]
+    # data = [
+    #     [f"Proportion: {(matrix_distribution['teacher_1']['student_1']/total):.3f}",
+    #      f"Proportion: {(matrix_distribution['teacher_1']['student_0']/total):.3f}"],
+    #     [f"Proportion: {(matrix_distribution['teacher_0']['student_1']/total):.3f}",
+    #      f"Proportion: {(matrix_distribution['teacher_0']['student_0']/total):.3f}"]
+    # ]
 
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    ax.axis('off')
+    colors = ["#fff5eb", "#fdbe85", "#fd8d3c", "#d94701"]
+    cmap = LinearSegmentedColormap.from_list("academic_oranges", colors)
 
-    table = ax.table(
-        cellText=data,
-        colLabels=['MIA predict \nMember \non Student Model', 'MIA predict \nNon-member \non Student Model'],
-        rowLabels=['MIA predict \nMember \non Teacher Model', 'MIA predict \nNon-member \non Teacher Model'],
-        loc='center',
-        cellLoc='center',
-        colWidths=[0.3, 0.3]
-    )
+    matrix = np.array([
+        [matrix_distribution['teacher_1']['student_1']/total, matrix_distribution['teacher_1']['student_0']/total],
+        [matrix_distribution['teacher_0']['student_1']/total, matrix_distribution['teacher_0']['student_0']/total]
+    ])
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(14)
-    table.scale(1.5, 2)
+    ax = sns.heatmap(matrix, annot=False, cmap=cmap, linewidths=2, 
+                     linecolor='white', cbar=False, square=True)
 
-    for (i, j), cell in table.get_celld().items():
-        if i == 0 or j == -1:
-            cell.set_facecolor('seagreen')
-            cell.set_text_props(color='white', weight='bold', verticalalignment='center', horizontalalignment='center')
-        else:
-            cell.set_facecolor('#F1F8E9')
-        
-        cell.set_height(0.24)
+    ax.set_xticklabels(['Member', 'Non-member'], fontsize=14, fontweight='bold')
+    ax.set_yticklabels(['Member', 'Non-member'], fontsize=14, fontweight='bold')
 
-    caption_text = "Each cell shows the proportion of training data in each category"
-    ax.text(0.35, 0.05, caption_text, ha='center', va='center', fontsize=14, transform=ax.transAxes)
-    
-    plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
+    ax.set_xlabel('MIA Result on Student Model', fontsize=16, fontweight='bold', labelpad=15)
+    ax.set_ylabel('MIA Result on Teacher Model', fontsize=16, fontweight='bold', labelpad=15)
 
-    plt.title(f"{teacher_model_name}/{student_model_name} Prediction Class Distribution Comparison using {metric.upper()}", fontsize=16, y=0.92, x=0.35)
+    cell_texts = [
+        [f"{matrix[0,0]:.3f}", 
+         f"{matrix[0,1]:.3f}"],
+        [f"{matrix[1,0]:.3f}", 
+         f"{matrix[1,1]:.3f}"]
+    ]
+
+    for i in range(2):
+        for j in range(2):
+            ax.text(j + 0.5, i + 0.5, cell_texts[i][j], 
+                    ha="center", va="center", fontsize=16,
+                    color="black" if matrix[i, j] < 0.25 else "white")
+
+    plt.suptitle(f'Prediction Class Distribution Comparison ({metric.capitalize()})', 
+                 fontsize=20, fontweight='bold', y=0.975)
+    plt.title(f'{teacher_model_name} / {student_model_name}', 
+              fontsize=16, pad=15)
+
+    fig.text(0.5, 0.01, 
+             "Each cell shows the proportion of training data in each category",
+             ha='center', fontsize=12, style='italic')
+
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.88, bottom=0.15)
 
     os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
-    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_distribution_comparison_matrix{extra_step}.png'))
+    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, 
+                           f'{metric}_distribution_comparison_matrix{extra_step}.png'), 
+                dpi=300, bbox_inches='tight')
+    print(f"{metric.capitalize()} distribution comparison matrix to", os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_distribution_comparison_matrix{extra_step}.png'))
     plt.close()
 
 def plot_performance_matrix(all_output, metric, teacher_model_name, student_model_name, extra_step):
@@ -375,66 +370,70 @@ def plot_performance_matrix(all_output, metric, teacher_model_name, student_mode
         }
     }
 
-    # Save proportions to a JSON file
-    os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
-    json_file_path = os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_attack_performance_proportions.json')
-    with open(json_file_path, 'w') as json_file:
-        json.dump(proportions, json_file, indent=4)
+    # # Save proportions to a JSON file
+    # os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
+    # json_file_path = os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_attack_performance_proportions.json')
+    # with open(json_file_path, 'w') as json_file:
+    #     json.dump(proportions, json_file, indent=4)
 
 
-    data = [
+    # data = [
+    #     [f"{proportions['both_correct']['total']:.3f}\n({proportions['both_correct']['positive']:.3f}, {proportions['both_correct']['negative']:.3f})",
+    #      f"{proportions['teacher_correct_student_wrong']['total']:.3f}\n({proportions['teacher_correct_student_wrong']['positive']:.3f}, {proportions['teacher_correct_student_wrong']['negative']:.3f})"],
+    #     [f"{proportions['teacher_wrong_student_correct']['total']:.3f}\n({proportions['teacher_wrong_student_correct']['positive']:.3f}, {proportions['teacher_wrong_student_correct']['negative']:.3f})",
+    #      f"{proportions['both_wrong']['total']:.3f}\n({proportions['both_wrong']['positive']:.3f}, {proportions['both_wrong']['negative']:.3f})"]
+    # ]
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    colors = ["#f7fbff", "#c6dbef", "#6baed6", "#08519c"]
+    cmap = LinearSegmentedColormap.from_list("academic_blues", colors)
+
+    matrix = np.array([
+        [proportions['both_correct']['total'], proportions['teacher_correct_student_wrong']['total']],
+        [proportions['teacher_wrong_student_correct']['total'], proportions['both_wrong']['total']]
+    ])
+
+    ax = sns.heatmap(matrix, annot=False, cmap=cmap, linewidths=2, 
+                     linecolor='white', cbar=False, square=True)
+
+    ax.set_xticklabels(['Success', 'Fail'], fontsize=14, fontweight='bold')
+    ax.set_yticklabels(['Success', 'Fail'], fontsize=14, fontweight='bold')
+
+    ax.set_xlabel('MIA Result on Student Model', fontsize=16, fontweight='bold', labelpad=15)
+    ax.set_ylabel('MIA Result on Teacher Model', fontsize=16, fontweight='bold', labelpad=15)
+
+    cell_texts = [
         [f"{proportions['both_correct']['total']:.3f}\n({proportions['both_correct']['positive']:.3f}, {proportions['both_correct']['negative']:.3f})",
          f"{proportions['teacher_correct_student_wrong']['total']:.3f}\n({proportions['teacher_correct_student_wrong']['positive']:.3f}, {proportions['teacher_correct_student_wrong']['negative']:.3f})"],
         [f"{proportions['teacher_wrong_student_correct']['total']:.3f}\n({proportions['teacher_wrong_student_correct']['positive']:.3f}, {proportions['teacher_wrong_student_correct']['negative']:.3f})",
          f"{proportions['both_wrong']['total']:.3f}\n({proportions['both_wrong']['positive']:.3f}, {proportions['both_wrong']['negative']:.3f})"]
     ]
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    for i in range(2):
+        for j in range(2):
+            ax.text(j + 0.5, i + 0.5, cell_texts[i][j], 
+                    ha="center", va="center", fontsize=16,
+                    color="black" if matrix[i, j] < 0.25 else "white")
 
-    ax.axis('off')
+    plt.suptitle(f'Attack Performance Comparison ({metric.capitalize()})', 
+                 fontsize=20, fontweight='bold', y=0.975)
+    plt.title(f'{teacher_model_name} / {student_model_name}', 
+              fontsize=16, pad=15)
 
-    # Create the table
-    table = ax.table(
-        cellText=data,
-        colLabels=['MIA Success on \nStudent Model', 'MIA Fail on \nStudent Model'],
-        rowLabels=['MIA Success on \nTeacher Model', 'MIA Fail on \nTeacher Model'],
-        loc='center',
-        cellLoc='center',
-        colWidths=[0.3, 0.3]
-    )
+    fig.text(0.5, 0.01, 
+             "Each cell shows the proportion of training data in each category\n(proportion of member data, proportion of non-member data)",
+             ha='center', fontsize=12, style='italic')
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(14)
-    table.scale(1.5, 2)
-
-    for (i, j), cell in table.get_celld().items():
-        if i == 0 or j == -1:
-            cell.set_facecolor('seagreen')
-            cell.set_text_props(color='white', weight='bold', verticalalignment='center', horizontalalignment='center')
-        else:
-            cell.set_facecolor('#F1F8E9')
-    
-    for key, cell in table.get_celld().items():
-        cell.set_height(0.2)
-    
-    caption_text = "Each cell shows the proportion of training data \nin each category, with parenthesis \n(propertion of member data, proportion of non-member data)"
-    ax.text(0.35, 0.08, caption_text, ha='center', va='center', fontsize=14, transform=ax.transAxes)
-    
-    plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
-
-    plt.title(f"{metric.upper()} Attack Performance Comparison on {teacher_model_name}/{student_model_name}", fontsize=16, y=0.85, x=0.35)
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.88, bottom=0.15)
 
     os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
-    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_attack_performance_comparison_matrix{extra_step}.png'))
+    plt.savefig(os.path.join('../fig/single_student', teacher_model_name, student_model_name, 
+                           f'{metric}_attack_performance_comparison_matrix{extra_step}.png'), 
+                dpi=300, bbox_inches='tight')
+    print(f"{metric.capitalize()} attack performance comparison matrix to", os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_attack_performance_comparison_matrix{extra_step}.png'))
     plt.close()
-
-
-def read_performance_proportions(model_name, metric):
-    file_path = os.path.join('../fig/single_student', model_name, f'{metric}_attack_performance_proportions.json')
-    print(f"Reading file: {file_path}")
-    with open(file_path, 'r', encoding='utf-8-sig') as json_file:
-        proportions = json.load(json_file)
-    return proportions
 
 
 if __name__ == "__main__":
@@ -448,6 +447,8 @@ if __name__ == "__main__":
     extra_step = args.post_distillation_step
     if extra_step == "red_list" or extra_step == "temp":
         extra_step = "_" + extra_step
+    elif extra_step == "none":
+        extra_step = ""
 
     input_path_dict = {
         teacher_model_name: teacher_model_testing_results_path
@@ -459,10 +460,10 @@ if __name__ == "__main__":
         input_path_student = input_path_dict[student_model_name]
         all_output, optimal_thresholds_teacher, optimal_thresholds_student = read_tables_from_multiple_files(teacher_model_testing_results_path, input_path_student)
         
-        teacher_accuracy, student_accuracy, teacher_se, student_se, prediction_summary = calculate_metrics(all_output)
-        plot_metrics(teacher_accuracy, student_accuracy, teacher_se, student_se, teacher_model_name, student_model_name, extra_step)
+        teacher_accuracy, student_accuracy, teacher_sd, student_sd, prediction_summary = calculate_metrics(all_output, teacher_model_name, student_model_name, extra_step)
+        # plot_metrics(teacher_accuracy, student_accuracy, teacher_sd, student_sd, teacher_model_name, student_model_name, extra_step)
         
-        for metric in ['recall', 'll', 'zlib']:
+        for metric in ['recall', 'loss', 'zlib']:
             if metric == 'recall' and teacher_model_name == "BERT":
                 continue
             plot_distribution_matrix(all_output, metric, teacher_model_name, student_model_name, extra_step)

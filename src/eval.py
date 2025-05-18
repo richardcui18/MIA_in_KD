@@ -1,4 +1,3 @@
-# This implementation is adapted from https://github.com/ruoyuxie/recall
 import json
 import os
 import random

@@ -8,6 +8,8 @@ import json
 from analysis_options import Options
 import random
 import hashlib
+import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
 
 
 def read_tables_from_file_one_model(input_path):
@@ -63,8 +65,6 @@ def read_tables_from_file_one_model(input_path):
     
     # Convert the dictionary back to a list
     all_output_list = list(all_output.values())
-
-    print("Done importing, start calculating threshold...")
 
     bert_in_model = 'bert' in input_path.lower()
 
@@ -146,7 +146,7 @@ def classify_data_points(all_output, bert_in_model):
 
     return all_output, optimal_thresholds
 
-def calculate_metrics(all_output):
+def calculate_metrics(all_output, model_name):
     # Initialize lists to store true labels and predictions
     true_labels = []
     original_recall_preds = []
@@ -160,10 +160,10 @@ def calculate_metrics(all_output):
     for ex in all_output:
         true_labels.append(int(ex['label']))
         original_recall_preds.append(int(ex['predicted_label_original']['recall']))
-        original_ll_preds.append(int(ex['predicted_label_original']['ll']))
+        original_ll_preds.append(int(ex['predicted_label_original']['loss']))
         original_zlib_preds.append(int(ex['predicted_label_original']['zlib']))
         ensembled_recall_preds.append(int(ex['predicted_label_ensembled']['recall']))
-        ensembled_ll_preds.append(int(ex['predicted_label_ensembled']['ll']))
+        ensembled_ll_preds.append(int(ex['predicted_label_ensembled']['loss']))
         ensembled_zlib_preds.append(int(ex['predicted_label_ensembled']['zlib']))
 
     def get_accuracy(true, pred):
@@ -187,9 +187,7 @@ def calculate_metrics(all_output):
 
     prediction_summary = [true_labels, original_recall_preds, original_ll_preds, original_zlib_preds, ensembled_recall_preds, ensembled_ll_preds, ensembled_zlib_preds]
 
-    return original_accuracy, ensembled_accuracy, prediction_summary
-
-def plot_metrics(original_accuracy, ensembled_accuracy, model_name):
+    # Export accuracy
     if 'BERT' in model_name:
         labels = ['Loss', 'Zlib']
         original_accuracy = original_accuracy[1:]
@@ -210,7 +208,7 @@ def plot_metrics(original_accuracy, ensembled_accuracy, model_name):
     
     for i, label in enumerate(labels):
         accuracy_data["metrics"].append({
-            "metric": label,
+            "MIA Method": label,
             "original_accuracy": round(float(original_accuracy[i]),3),
             "ensembled_accuracy": round(float(ensembled_accuracy[i]),3)
         })
@@ -219,6 +217,8 @@ def plot_metrics(original_accuracy, ensembled_accuracy, model_name):
     print("Accuracy values json file to", json_output_path)
     with open(json_output_path, 'w') as f:
         json.dump(accuracy_data, f, indent=4)
+    
+    return original_accuracy, ensembled_accuracy, prediction_summary
 
 
 def plot_distribution_matrix(all_output, metric, model_name):
@@ -251,40 +251,54 @@ def plot_distribution_matrix(all_output, metric, model_name):
     ]
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    ax.axis('off')
 
-    # Create the table
-    table = ax.table(
-        cellText=data,
-        colLabels=['MIA predict \nMember \non ensembled Model', 'MIA predict \nNon-member \non ensembled Model'],
-        rowLabels=['MIA predict \nMember \non original Model', 'MIA predict \nNon-member \non original Model'],
-        loc='center',
-        cellLoc='center',
-        colWidths=[0.3, 0.3]
-    )
+    colors = ["#fff5eb", "#fdbe85", "#fd8d3c", "#d94701"]
+    cmap = LinearSegmentedColormap.from_list("academic_oranges", colors)
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(14)
-    table.scale(1.5, 2)
+    matrix = np.array([
+        [matrix_distribution['original_1']['ensembled_1']/total, 
+         matrix_distribution['original_1']['ensembled_0']/total],
+        [matrix_distribution['original_0']['ensembled_1']/total, 
+         matrix_distribution['original_0']['ensembled_0']/total]
+    ])
 
-    for (i, j), cell in table.get_celld().items():
-        if i == 0 or j == -1:
-            cell.set_facecolor('seagreen')
-            cell.set_text_props(color='white', weight='bold', verticalalignment='center', horizontalalignment='center')
-        else:
-            cell.set_facecolor('#F1F8E9')
-        
-        cell.set_height(0.24)
+    ax = sns.heatmap(matrix, annot=False, cmap=cmap, linewidths=2, 
+                     linecolor='white', cbar=False, square=True)
 
-    caption_text = "Each cell shows the proportion of training data in each category"
-    ax.text(0.35, 0.05, caption_text, ha='center', va='center', fontsize=14, transform=ax.transAxes)
-    
-    plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
+    ax.set_xticklabels(['Member', 'Non-member'], fontsize=14, fontweight='bold')
+    ax.set_yticklabels(['Member', 'Non-member'], fontsize=14, fontweight='bold')
 
-    plt.title(f"{model_name} Prediction Class Distribution Comparison\nusing {metric.upper()} with Ensemble", fontsize=16, y=0.92, x=0.35)
+    ax.set_xlabel('MIA Result on Ensembled Model', fontsize=16, fontweight='bold', labelpad=15)
+    ax.set_ylabel('MIA Result on Original Model', fontsize=16, fontweight='bold', labelpad=15)
+
+    cell_texts = [
+        [f"{matrix[0,0]:.3f}", f"{matrix[0,1]:.3f}"],
+        [f"{matrix[1,0]:.3f}", f"{matrix[1,1]:.3f}"]
+    ]
+
+    for i in range(2):
+        for j in range(2):
+            ax.text(j + 0.5, i + 0.5, cell_texts[i][j], 
+                    ha="center", va="center", fontsize=16,
+                    color="black" if matrix[i, j] < 0.25 else "white")
+
+    plt.suptitle(f'Prediction Class Distribution Comparison ({metric.capitalize()})', 
+                 fontsize=20, fontweight='bold', y=0.975)
+    plt.title(f'{model_name} with Ensemble', 
+              fontsize=16, pad=15)
+
+    fig.text(0.5, 0.01, 
+             "Each cell shows the proportion of training data in each category",
+             ha='center', fontsize=12, style='italic')
+
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.88, bottom=0.15)
 
     os.makedirs(os.path.join('../fig/ensemble', model_name), exist_ok=True)
-    plt.savefig(os.path.join('../fig/ensemble', model_name, f'{metric}_distribution_comparison_matrix.png'))
+    plt.savefig(os.path.join('../fig/ensemble', model_name, 
+                           f'{metric}_distribution_comparison_matrix.png'), 
+                dpi=300, bbox_inches='tight')
+    print(f"{metric.capitalize()} distribution comparison matrix to", os.path.join('../fig/ensemble', model_name, f'{metric}_distribution_comparison_matrix.png'))
     plt.close()
 
 def plot_performance_matrix(all_output, metric, model_name):
@@ -359,41 +373,54 @@ def plot_performance_matrix(all_output, metric, model_name):
     ]
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    ax.axis('off')
 
-    # Create the table
-    table = ax.table(
-        cellText=data,
-        colLabels=['MIA Success on \nensembled Model', 'MIA Fail on \nensembled Model'],
-        rowLabels=['MIA Success on \noriginal Model', 'MIA Fail on \noriginal Model'],
-        loc='center',
-        cellLoc='center',
-        colWidths=[0.3, 0.3]
-    )
+    colors = ["#f7fbff", "#c6dbef", "#6baed6", "#08519c"]
+    cmap = LinearSegmentedColormap.from_list("academic_blues", colors)
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(14)
-    table.scale(1.5, 2)
+    matrix = np.array([
+        [proportions['both_correct']['total'], proportions['original_correct_ensembled_wrong']['total']],
+        [proportions['original_wrong_ensembled_correct']['total'], proportions['both_wrong']['total']]
+    ])
 
-    for (i, j), cell in table.get_celld().items():
-        if i == 0 or j == -1:
-            cell.set_facecolor('seagreen')
-            cell.set_text_props(color='white', weight='bold', verticalalignment='center', horizontalalignment='center')
-        else:
-            cell.set_facecolor('#F1F8E9')
-    
-    for key, cell in table.get_celld().items():
-        cell.set_height(0.2)
-    
-    caption_text = "Each cell shows the proportion of training data \nin each category, with parenthesis \n(propertion of member data, proportion of non-member data)"
-    ax.text(0.35, 0.08, caption_text, ha='center', va='center', fontsize=14, transform=ax.transAxes)
-    
-    plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
+    ax = sns.heatmap(matrix, annot=False, cmap=cmap, linewidths=2, 
+                     linecolor='white', cbar=False, square=True)
 
-    plt.title(f"{metric.upper()} Attack Performance Comparison on {model_name} with Ensemble", fontsize=16, y=0.85, x=0.35)
+    ax.set_xticklabels(['Success', 'Fail'], fontsize=14, fontweight='bold')
+    ax.set_yticklabels(['Success', 'Fail'], fontsize=14, fontweight='bold')
+
+    ax.set_xlabel('MIA Result on Ensembled Model', fontsize=16, fontweight='bold', labelpad=15)
+    ax.set_ylabel('MIA Result on Original Model', fontsize=16, fontweight='bold', labelpad=15)
+
+    cell_texts = [
+        [f"{proportions['both_correct']['total']:.3f}\n({proportions['both_correct']['positive']:.3f}, {proportions['both_correct']['negative']:.3f})",
+         f"{proportions['original_correct_ensembled_wrong']['total']:.3f}\n({proportions['original_correct_ensembled_wrong']['positive']:.3f}, {proportions['original_correct_ensembled_wrong']['negative']:.3f})"],
+        [f"{proportions['original_wrong_ensembled_correct']['total']:.3f}\n({proportions['original_wrong_ensembled_correct']['positive']:.3f}, {proportions['original_wrong_ensembled_correct']['negative']:.3f})",
+         f"{proportions['both_wrong']['total']:.3f}\n({proportions['both_wrong']['positive']:.3f}, {proportions['both_wrong']['negative']:.3f})"]
+    ]
+
+    for i in range(2):
+        for j in range(2):
+            ax.text(j + 0.5, i + 0.5, cell_texts[i][j], 
+                    ha="center", va="center", fontsize=16,
+                    color="black" if matrix[i, j] < 0.25 else "white")
+
+    plt.suptitle(f'Attack Performance Comparison ({metric.capitalize()})', 
+                 fontsize=20, fontweight='bold', y=0.975)
+    plt.title(f'{model_name} with Ensemble', 
+              fontsize=16, pad=15)
+
+    fig.text(0.5, 0.01, 
+             "Each cell shows the proportion of training data in each category\n(proportion of member data, proportion of non-member data)",
+             ha='center', fontsize=12, style='italic')
+
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.88, bottom=0.15)
 
     os.makedirs(os.path.join('../fig/ensemble', model_name), exist_ok=True)
-    plt.savefig(os.path.join('../fig/ensemble', model_name, f'{metric}_attack_performance_comparison_matrix.png'))
+    plt.savefig(os.path.join('../fig/ensemble', model_name, 
+                           f'{metric}_attack_performance_comparison_matrix.png'), 
+                dpi=300, bbox_inches='tight')
+    print(f"{metric.capitalize()} attack performance comparison matrix to", os.path.join('../fig/ensemble', model_name, f'{metric}_attack_performance_comparison_matrix.png'))
     plt.close()
 
 
@@ -524,13 +551,10 @@ if __name__ == "__main__":
     
     all_output = do_ensemble(original_model_name, original_ensemble_model_map, input_path_dict)
 
-    original_accuracy, ensembled_accuracy, prediction_summary = calculate_metrics(all_output)
-    plot_metrics(original_accuracy, ensembled_accuracy, original_model_name)
+    original_accuracy, ensembled_accuracy, prediction_summary = calculate_metrics(all_output, original_model_name)
 
-    for metric in ['recall', 'll', 'zlib']:
+    for metric in ['recall', 'loss', 'zlib']:
         if metric == 'recall' and original_model_name == "BERT":
             continue
         plot_distribution_matrix(all_output, metric, original_model_name)
-        print("Finish distribution matrix plotting...")
         plot_performance_matrix(all_output, metric, original_model_name)
-        print("Finish performance matrix plotting...")

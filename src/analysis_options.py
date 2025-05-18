@@ -27,4 +27,4 @@ class Options():
             default=None, 
             help="List of path to student model testing results"
         )
-        self.parser.add_argument("--post_distillation_step", type=str, default="", help="extra post-distillation privacy-preserving distillation step. Choose from '', 'red_list', and 'temp'.")
+        self.parser.add_argument("--post_distillation_step", type=str, default="none", help="extra post-distillation privacy-preserving distillation step. Choose from 'none', 'red_list', and 'temp'.")
