@@ -27,7 +27,7 @@ def read_tables_from_file_one_model(input_path):
         
         for row in reader:
             if not row:
-                continue  # Skip empty rows
+                continue
             
             if row[0].startswith("Table for Metric:"):
                 # Extract metric and thresholds
@@ -35,11 +35,9 @@ def read_tables_from_file_one_model(input_path):
                 current_metric = metric
                 
             elif row[0] == "Data Point":
-                # Skip header row
                 continue
                 
             else:
-                # Extract data point information
                 input_key = row[0]
                 label = int(row[1])
                 pred_value = float(row[2])
@@ -357,12 +355,6 @@ def plot_performance_matrix(all_output, metric, model_name):
             'negative': matrix_performance['both_wrong']['negative'] / total
         }
     }
-
-    # Save proportions to a JSON file
-    os.makedirs(os.path.join('../fig/ensemble', model_name), exist_ok=True)
-    json_file_path = os.path.join('../fig/ensemble', model_name, f'{metric}_attack_performance_proportions.json')
-    with open(json_file_path, 'w') as json_file:
-        json.dump(proportions, json_file, indent=4)
 
     # Visualize result
     data = [

@@ -254,13 +254,6 @@ def plot_distribution_matrix(all_output, metric, teacher_model_name, student_mod
 
     total = len(all_output)
 
-    # data = [
-    #     [f"Proportion: {(matrix_distribution['teacher_1']['student_1']/total):.3f}",
-    #      f"Proportion: {(matrix_distribution['teacher_1']['student_0']/total):.3f}"],
-    #     [f"Proportion: {(matrix_distribution['teacher_0']['student_1']/total):.3f}",
-    #      f"Proportion: {(matrix_distribution['teacher_0']['student_0']/total):.3f}"]
-    # ]
-
     fig, ax = plt.subplots(figsize=(10, 8))
 
     colors = ["#fff5eb", "#fdbe85", "#fd8d3c", "#d94701"]
@@ -370,20 +363,6 @@ def plot_performance_matrix(all_output, metric, teacher_model_name, student_mode
         }
     }
 
-    # # Save proportions to a JSON file
-    # os.makedirs(os.path.join('../fig/single_student', teacher_model_name, student_model_name), exist_ok=True)
-    # json_file_path = os.path.join('../fig/single_student', teacher_model_name, student_model_name, f'{metric}_attack_performance_proportions.json')
-    # with open(json_file_path, 'w') as json_file:
-    #     json.dump(proportions, json_file, indent=4)
-
-
-    # data = [
-    #     [f"{proportions['both_correct']['total']:.3f}\n({proportions['both_correct']['positive']:.3f}, {proportions['both_correct']['negative']:.3f})",
-    #      f"{proportions['teacher_correct_student_wrong']['total']:.3f}\n({proportions['teacher_correct_student_wrong']['positive']:.3f}, {proportions['teacher_correct_student_wrong']['negative']:.3f})"],
-    #     [f"{proportions['teacher_wrong_student_correct']['total']:.3f}\n({proportions['teacher_wrong_student_correct']['positive']:.3f}, {proportions['teacher_wrong_student_correct']['negative']:.3f})",
-    #      f"{proportions['both_wrong']['total']:.3f}\n({proportions['both_wrong']['positive']:.3f}, {proportions['both_wrong']['negative']:.3f})"]
-    # ]
-
     fig, ax = plt.subplots(figsize=(10, 8))
 
     colors = ["#f7fbff", "#c6dbef", "#6baed6", "#08519c"]
@@ -461,7 +440,6 @@ if __name__ == "__main__":
         all_output, optimal_thresholds_teacher, optimal_thresholds_student = read_tables_from_multiple_files(teacher_model_testing_results_path, input_path_student)
         
         teacher_accuracy, student_accuracy, teacher_sd, student_sd, prediction_summary = calculate_metrics(all_output, teacher_model_name, student_model_name, extra_step)
-        # plot_metrics(teacher_accuracy, student_accuracy, teacher_sd, student_sd, teacher_model_name, student_model_name, extra_step)
         
         for metric in ['recall', 'loss', 'zlib']:
             if metric == 'recall' and teacher_model_name == "BERT":
