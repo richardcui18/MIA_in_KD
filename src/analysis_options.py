@@ -17,7 +17,7 @@ class Options():
             '--student_model_names', 
             type=str, 
             nargs='+',
-            default=["DistilBERT"], 
+            default="DistilBERT", 
             help="List of student model names"
         )
         self.parser.add_argument(
