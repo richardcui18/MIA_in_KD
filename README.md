@@ -1,7 +1,10 @@
 # On Membership Inference Attacks in Knowledge Distillation
 
+[![PDF](https://img.shields.io/badge/arXiv-2505.11837-b31b1b.svg)](https://arxiv.org/abs/2505.11837)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 ## Overview
-This is the official repository for On Membership Inference Attacks in Knowledge Distillation.
+This is the official repository for [On Membership Inference Attacks in Knowledge Distillation](https://arxiv.org/pdf/2505.11837).
 
 ## Installation
    ```bash
@@ -103,4 +106,18 @@ python analysis_ensemble.py \
     --teacher_model_testing_results_path "out/bookcorpus/bert-base-uncased/128/2_shot_128_limit_100000_each.csv" \
     --student_model_names "DistilBERT" "TinyBERT" \
     --student_model_testing_results_paths "out/bookcorpus/distilbert-base-uncased/128/2_shot_128_limit_100000_each.csv" "out/bookcorpus/TinyBERT_General_4L_312D/128/2_shot_128_limit_100000_each.csv"
+```
+
+## Citation
+If you find this work useful, please consider citing our paper:
+```
+@misc{cui2025membershipinferenceattacksknowledge,
+      title={On Membership Inference Attacks in Knowledge Distillation}, 
+      author={Ziyao Cui and Minxing Zhang and Jian Pei},
+      year={2025},
+      eprint={2505.11837},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2505.11837}, 
+}
 ```
